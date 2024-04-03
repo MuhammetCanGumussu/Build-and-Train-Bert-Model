@@ -1,13 +1,16 @@
 """
 python prepare.py train_tokenizer
+python prepare.py --task=nsp_mlm --block_size=255
 """
 import nltk
 from nltk.tokenize import word_tokenize, RegexpTokenizer
 
-from datasets import DatasetDict, Dataset, load_from_disk
+from datasets import Dataset, load_from_disk
 import pandas as pd
 import re
 import os
+
+
 
 
 def __delete_subtitles(example):
@@ -34,24 +37,34 @@ def __delete_subtitles(example):
         return None
     
 
-def create_and_save_tr_wiki_ds():
+def get_raw_dataset():
     """
-    + there are 3 files (splits): trwiki-67.test.raw, trwiki-67.train.raw, trwiki-67.val.raw
-    + this function goes for every file
-    + finds titles and doc-examples
-    + concat everyting into one dict object
-    + there are problematic examples (no text(null) or some lines of examples are not actually paragraph
-      but subtitles)
-    + apply preprocess to handle these problems (delete subtitles and mask-filter-delete null examples)
-    + measure length of examples and return as a new column
-    + create dataset object and save it as .arrow format
+    + looks for raw_dataset dir, if exist then gonna load it and return.
+    + if not exist will create one and return:
+        - there are 3 files (splits): trwiki-67.test.raw, trwiki-67.train.raw, trwiki-67.val.raw
+        - go for every file
+        - finds titles and doc-examples
+        - concat everyting into one dict object
+        - there are problematic examples (no text(null) or some lines of examples are not actually paragraph
+        - but subtitles)
+        - apply preprocess to handle these problems (delete subtitles and mask-filter-delete null examples)
+        - measure length of examples and return as a new column
+        - create dataset object and save it as .arrow format
+        - and return
     """
+    
+    # if raw dataset (.arrow) already exists
+    if os.path.exists("data/tr_wiki67/raw_dataset"):
+        return load_from_disk("data/tr_wiki67/raw_dataset")
+    
+    # if dataset does not already exist, will be created
+    print("raw dataset is not already exist, it will be created...")
+    
     prefix = "data/tr_wiki67/trwiki-67."
     file_paths = [ f"{prefix}{post_fix}.raw" for post_fix in ["test", "train", "val"] ]
 
     data_dict = {"examples":[], "titles":[]}
 
-    
 
     # go for every file
     for file in file_paths:
@@ -73,21 +86,22 @@ def create_and_save_tr_wiki_ds():
         data_dict["examples"].extend(temp_data_dict["examples"])
         data_dict["titles"].extend(temp_data_dict["titles"])
 
-        # convert data_dict object into dataframe object
-        df = pd.DataFrame(data_dict)
-        # lets delete lines of examples that are subtitles
-        df["examples"] = df["examples"].map(__delete_subtitles)
-        # lets also delete-mask df by null values (examples that does not contain text at all)
-        mask = df["examples"].isnull()
-        df = df[~mask]
+    # convert data_dict object into dataframe object
+    df = pd.DataFrame(data_dict)
+    # lets delete lines of examples that are subtitles
+    df["examples"] = df["examples"].map(__delete_subtitles)
+    # lets also delete-mask df by null values (examples that does not contain text at all)
+    mask = df["examples"].isnull()
+    df = df[~mask]
+    # lets measure length of examples (by char)
+    df["length"] = df["examples"].map(len)
+    # create hf dataset and save to disk
+    df = df.reset_index(drop=True)
+    dataset = Dataset.from_pandas(df)
+    dataset.save_to_disk("data/tr_wiki67/raw_dataset")
+    return dataset
 
-        # lets measure length of examples (by char)
-        df["length"] = df["examples"].map(len)
 
-        # create hf dataset and save to disk
-        df = df.reset_index(drop=True)
-        dataset = Dataset.from_pandas(df)
-        dataset.save_to_disk("data/tr_wiki67/tr_wiki67_dataset")
 
 
 def main():
