@@ -1,11 +1,12 @@
 """
-python train_tokenizer.py
+python train_tokenizer.py --vocab_size=25_000 --limit_alphabet=5 --save_path="wordpiece_tokenizer"
 """
 import os
 import sys
 from data.tr_wiki67.prepare import get_raw_dataset
 from dataclasses import dataclass, asdict
 from ast import literal_eval
+from transformers import PreTrainedTokenizerFast
 
 from tokenizers import (
     decoders,
@@ -18,12 +19,7 @@ from tokenizers import (
 )
 
 
-
-dataset = get_raw_dataset()
-
-
-
-def get_example_batch():
+def get_example_batch(dataset):
     """
     generator func
     will be used when training tokenizer
@@ -35,13 +31,15 @@ def get_example_batch():
 @dataclass
 class TokenizerConfig:
     vocab_size: int = 25_000
-    limit_alpabet: int = 500
+    limit_alphabet: int = 500
     min_frequency: int = 5
-    path_to_save: str = None
+    save_path: str = "wordpiece_tokenizer"
 
 
 
 def build_and_train_tokenizer(train_cfg:TokenizerConfig):
+
+    dataset = get_raw_dataset()
 
     tokenizer = Tokenizer(models.WordPiece(unk_token="[UNK]"))
 
@@ -59,9 +57,10 @@ def build_and_train_tokenizer(train_cfg:TokenizerConfig):
     trainer = trainers.WordPieceTrainer(vocab_size=train_cfg.vocab_size, special_tokens=special_tokens, 
                                         min_frequency=train_cfg.min_frequency,
                                         continuing_subword_prefix="##", 
-                                        limit_alphabet=train_cfg.limit_alpabet)
+                                        limit_alphabet=train_cfg.limit_alphabet)
+    print("training...")
 
-    tokenizer.train_from_iterator(get_example_batch(), trainer=trainer)
+    tokenizer.train_from_iterator(get_example_batch(dataset), trainer=trainer)
 
     print("tokenizer training finished...")
 
@@ -76,6 +75,7 @@ def build_and_train_tokenizer(train_cfg:TokenizerConfig):
     
     tokenizer.decoder = decoders.WordPiece(prefix="##")
 
+    return tokenizer
 
 def parse_args() -> TokenizerConfig:
     default_cfg = asdict(TokenizerConfig())
@@ -86,16 +86,20 @@ def parse_args() -> TokenizerConfig:
         key = key[2:]
 
         if key in default_cfg.keys():
-            val = literal_eval(val)
-            assert type(val) == type(default_cfg[key])
-            default_cfg[key] = val
+            try:
+                attempt = literal_eval(val)
+            except(SyntaxError, ValueError):
+                attempt = val
+            
+            assert type(attempt) == type(default_cfg[key]), f"type mismatch between {default_cfg[key]} type: {type(default_cfg[key])} and  {val} type: {type(val)}"
+            default_cfg[key] = attempt
         
         else:
             raise ValueError(f"[ERROR] unknown arg key: {key}")
         
-    if default_cfg["path_to_save"] is None:
-        # default path
-        default_cfg["path_to_save"] = "./tokenizer_wordpiece"   
+
+    # for test
+    print(default_cfg)
     
     return TokenizerConfig(**default_cfg)
 
@@ -109,16 +113,26 @@ def parse_args() -> TokenizerConfig:
 def main():
     train_cfg = parse_args() 
 
-    if os.path.exists(train_cfg.path_to_save):
+    if os.path.exists(train_cfg.save_path):
         print("tokenizer is already exists...")
 
     else:
         tokenizer = build_and_train_tokenizer(train_cfg)
         print("tokenizer will be saved...")
-        tokenizer.save_pretrained(train_cfg.path_to_save)
+
+        # wrapped_tokenizer = PreTrainedTokenizerFast(
+        # tokenizer_object=tokenizer,
+        # # tokenizer_file="tokenizer/tokenizer_55.json", # You can load from the tokenizer file, alternatively
+        # unk_token="[UNK]",
+        # pad_token="[PAD]",
+        # cls_token="[CLS]",
+        # sep_token="[SEP]",
+        # mask_token="[MASK]",
+        # )
+
+        tokenizer.save(train_cfg.save_path)
     
 
 
-
-if __name__ == "main":
+if __name__ == "__main__":
     main()
