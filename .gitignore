@@ -8,6 +8,8 @@ data/tr_wiki67/trwiki-67.val.raw
 data/tr_wiki67/tr_wiki67_dataset
 data/tr_wiki67/raw_dataset
 data/tr_wiki67/nsp_mlm_table
+data/tr_wiki67/ab_table
 
-deneme_ab_tablosu
-tokenizer_wordpiece
+models
+
+wordpiece_tokenizer
