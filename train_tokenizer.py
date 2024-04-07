@@ -6,7 +6,7 @@ import sys
 from data.tr_wiki67.prepare import get_raw_dataset
 from dataclasses import dataclass, asdict
 from ast import literal_eval
-from transformers import PreTrainedTokenizerFast
+# from transformers import PreTrainedTokenizerFast
 
 from tokenizers import (
     decoders,
@@ -17,6 +17,8 @@ from tokenizers import (
     trainers,
     Tokenizer,
 )
+
+raw_dataset_path = "data/tr_wiki67/raw_dataset"
 
 
 def get_example_batch(dataset):
@@ -39,7 +41,7 @@ class TokenizerConfig:
 
 def build_and_train_tokenizer(train_cfg:TokenizerConfig):
 
-    dataset = get_raw_dataset()
+    dataset = get_raw_dataset(raw_dataset_path)
 
     tokenizer = Tokenizer(models.WordPiece(unk_token="[UNK]"))
 
@@ -105,18 +107,15 @@ def parse_args() -> TokenizerConfig:
 
 
 
-
-        
-
-
-
 def main():
     train_cfg = parse_args() 
 
     if os.path.exists(train_cfg.save_path):
-        print("tokenizer is already exists...")
+        print("tokenizer is already exists: ", train_cfg.save_path)
 
     else:
+        
+
         tokenizer = build_and_train_tokenizer(train_cfg)
         print("tokenizer will be saved...")
 
